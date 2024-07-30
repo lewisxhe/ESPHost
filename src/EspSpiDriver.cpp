@@ -70,7 +70,13 @@
 #endif
 
 #ifndef ESPHOSTSPI_MHZ
-#define ESPHOSTSPI_MHZ 10
+#if defined(ARDUINO_ARCH_NRF52)
+#define ESPHOSTSPI_MHZ 8   // nrf52 SPI (NRF_SPIM3) has selectable frequencies of 1, 2, 4, 8, 16, 32 MHZ
+#elif defined(ARDUINO_ARCH_RP2040)
+#define ESPHOSTSPI_MHZ 10  
+#else
+#define ESPHOSTSPI_MHZ 4   //Set other untested devices to the common 4MHZ
+#endif
 #endif
 
 /* #################
@@ -151,7 +157,7 @@ int esp_host_spi_init(void) {
    digitalWrite(NINA_GPIO0, HIGH);
 #endif
    digitalWrite(ESP_RESET, LOW);
-   delay(1);
+   delay(20);  //It takes at least 20ms to reset reliably
    digitalWrite(ESP_RESET, HIGH);
    delay(2000);
 #if defined(NINA_GPIO0)

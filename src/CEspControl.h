@@ -147,7 +147,9 @@ public:
    
    
 
-   int initSpiDriver() { return esp_host_spi_init(); }
+   int initSpiDriver(int cs,int data_ready,int handshake,int rst = -1,SPIClass&spi = SPI) {
+       return esp_host_spi_init(cs,data_ready,handshake,rst,spi); 
+   }
 
 
    

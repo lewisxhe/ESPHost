@@ -26,6 +26,7 @@
 
 #include "Arduino.h"
 #include "CEspCommunication.h"
+#include <SPI.h>
 
 #define ESP_HOSTED_SPI_DRIVER_OK   0
 #define ESP_HOSTED_SPI_NOTHING_TO_TX_OR_RX    3
@@ -35,7 +36,7 @@
 #define ESP_HOSTED_SPI_ESP_NOT_READY          2
 
 /* init the SPI driver */
-int esp_host_spi_init(void);
+int esp_host_spi_init(int cs,int data_ready,int handshake,int rst,SPIClass&spi);
 /* it performs the spi communication untill there are message to be tx or rx
    (it stops if an error occurred) 
    it returns the error or 0 if all is ok */

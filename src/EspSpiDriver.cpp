@@ -28,46 +28,11 @@
  * Includes 
  * ######## */
 
-#include <SPI.h>
 #include "EspSpiDriver.h"
 
 /* #####################
  * Configuration defines 
  * ##################### */
-
-#if defined(NINA_GPIO0)
-#define ESP_RESET         SPIWIFI_RESET
-#define HANDSHAKE         NINA_GPIO0
-#define DATA_READY        SPIWIFI_ACK
-#define ESP_CS            SPIWIFI_SS
-
-#elif defined(ESPHOSTSPI)
-#define ESP_RESET         ESPHOST_RESET
-#define HANDSHAKE         ESPHOST_HANDSHAKE
-#define DATA_READY        ESPHOST_DATA_READY
-
-#define ESP_CS  ESPHOST_CS
-#define SPIWIFI ESPHOSTSPI
-
-#elif USE_ESP32_DEVKIT
-/* GPIOs */
-#define ESP_RESET         5
-#define HANDSHAKE         7
-#define DATA_READY        6
-
-/* SPI PIN definition */
-#define SPIWIFI SPI
-#define ESP_CS     10
-#else
-/* GPIOs */
-#define ESP_RESET         101
-#define HANDSHAKE         102
-#define DATA_READY        100
-
-/* SPI PIN definition */
-#define SPIWIFI SPI1
-#define ESP_CS     103
-#endif
 
 #ifndef ESPHOSTSPI_MHZ
 #if defined(ARDUINO_ARCH_NRF52)
@@ -118,6 +83,11 @@ int esp_host_spi_transaction(void);
  * ################ */
 
 static bool spi_driver_initialized = false;
+static SPIClass *_spi = NULL;
+static int _cs = -1;
+static int _rdy = -1;
+static int _hs = -1;
+static int _rst = -1;
 
 bool isEspSpiInitialized() {
    return spi_driver_initialized;
@@ -128,42 +98,42 @@ bool isEspSpiInitialized() {
  * SPI driver also use 2 PIN (handshake and data ready) to synchronize SPI 
  * configuration                                                              */
 /* -------------------------------------------------------------------------- */
-int esp_host_spi_init(void) {
+int esp_host_spi_init(int cs,int data_ready,int handshake,int rst,SPIClass&spi) {
    
    if(spi_driver_initialized) {
       return ESP_HOSTED_SPI_DRIVER_OK;
    }
 
+   _cs = cs;
+   _rdy = data_ready;
+   _hs = handshake;
+   _rst = rst;
+   _spi = &spi;
+   
    /* ++++++++++++++++++++++++++++++++++
-    *  GPIOs (HANDSHAKE and DATA_READY)
+    *  GPIOs (_hs and _rdy)
     * ++++++++++++++++++++++++++++++++++ */
-   pinMode(HANDSHAKE, INPUT);
-   pinMode(DATA_READY, INPUT);
-   pinMode(ESP_CS, OUTPUT);
-   pinMode(ESP_RESET, OUTPUT);
+   pinMode(_hs, INPUT);
+   pinMode(_rdy, INPUT);
+   pinMode(_cs, OUTPUT);
 
    /* +++++
     *  SPI
     * +++++ */
     
-   digitalWrite(ESP_CS, HIGH);
-   SPIWIFI.begin();
+   digitalWrite(_cs, HIGH);
+   _spi->begin();
    
    /* +++++++++
     * RESET
     * +++++++++ */
-#if defined(NINA_GPIO0)
-   pinMode(NINA_GPIO0, OUTPUT);
-   digitalWrite(NINA_GPIO0, HIGH);
-#endif
-   digitalWrite(ESP_RESET, LOW);
-   delay(20);  //It takes at least 20ms to reset reliably
-   digitalWrite(ESP_RESET, HIGH);
-   delay(2000);
-#if defined(NINA_GPIO0)
-   digitalWrite(NINA_GPIO0, LOW);
-   pinMode(NINA_GPIO0, INPUT);
-#endif
+   if(_rst > 0){
+      pinMode(_rst, OUTPUT);
+      digitalWrite(_rst, LOW);
+      delay(20);  //It takes at least 20ms to reset reliably
+      digitalWrite(_rst, HIGH);
+      delay(200);
+   }
 
    spi_driver_initialized = true;
    return ESP_HOSTED_SPI_DRIVER_OK; 
@@ -175,7 +145,7 @@ int esp_host_spi_init(void) {
  - false if ESP has no data to be transmitted
  */
 bool esp_host_there_are_data_to_be_rx() {
-   bool rv = digitalRead(DATA_READY);
+   bool rv = digitalRead(_rdy);
 
    #ifdef ESP_HOST_DEBUG_ENABLED_AVOID
    if(rv) {
@@ -205,7 +175,7 @@ bool esp_host_there_are_data_to_be_tx() {
 
 /* this function calls esp_host_spi_transaction() to perfom spi communication
    esp_host_spi_transaction() checks if there is somenthing to send (by checking
-   if something is on the tx queue) or something to receive if the DATA_READY
+   if something is on the tx queue) or something to receive if the _rdy
    pin is high 
    Only in this case a communication with the SPI is actually performed 
    Since a single SPI communcation always transmit and receive if something 
@@ -309,7 +279,7 @@ int esp_host_send_and_receive(void) {
    /* VERIFY IF ESP32 is ready to accept a SPI transaction */
    bool esp_ready = false;
    do {
-     esp_ready = (digitalRead(HANDSHAKE) == HIGH);
+     esp_ready = (digitalRead(_hs) == HIGH);
       if(esp_ready) {
          #ifdef ESP_HOST_DEBUG_ENABLED_AVOID
          Serial.print("ESP ready? ");
@@ -336,14 +306,14 @@ int esp_host_send_and_receive(void) {
       Serial.println();
       #endif
 
-      SPIWIFI.beginTransaction(SPISettings(1000000ul * ESPHOSTSPI_MHZ, MSBFIRST, SPI_MODE2));
-      digitalWrite(ESP_CS, LOW);
+      _spi->beginTransaction(SPISettings(1000000ul * ESPHOSTSPI_MHZ, MSBFIRST, SPI_MODE2));
+      digitalWrite(_cs, LOW);
       delayMicroseconds(100);
       for (int i = 0; i < MAX_SPI_BUFFER_SIZE; i++) {
-        esp32_spi_rx_buffer[i] = SPIWIFI.transfer(esp32_spi_tx_buffer[i]);
+        esp32_spi_rx_buffer[i] = _spi->transfer(esp32_spi_tx_buffer[i]);
       }
-      digitalWrite(ESP_CS, HIGH);
-      SPIWIFI.endTransaction();
+      digitalWrite(_cs, HIGH);
+      _spi->endTransaction();
 
       rv = ESP_HOSTED_SPI_DRIVER_OK;
 

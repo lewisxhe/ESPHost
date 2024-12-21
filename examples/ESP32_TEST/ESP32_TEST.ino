@@ -6,6 +6,12 @@ int displayMenu();
 void makeRequest(int req);
 std::string prompt(std::string p);
 
+#define ESPHOST_RESET 1 
+#define ESPHOST_HANDSHAKE 2 
+#define ESPHOST_DATA_READY 3 
+#define ESPHOST_CS 4 
+#define ESPHOSTSPI SPI
+
 
 const char mac_address[] = "aa:bb:cc:dd:ee:ff";
 
@@ -65,7 +71,7 @@ void setup() {
   
   Serial.println("STARTING PROGRAM");
 
-  int err = CEspControl::getInstance().initSpiDriver();
+  int err = CEspControl::getInstance().initSpiDriver(ESPHOST_CS,ESPHOST_DATA_READY,ESPHOST_HANDSHAKE,ESPHOST_RESET,ESPHOSTSPI);
   if (err != 0) {
     Serial.print("Error initSpiDriver err ");
     Serial.println(err);
@@ -388,6 +394,8 @@ void setWifiMode() {
 
 /* -------------------------------------------------------------------------- */
 void getAccessPointList() {
+  // Clear the buffer
+  access_point_list.clear();
 /* -------------------------------------------------------------------------- */  
   Serial.println(">>> [APP]: Sending request GET ACCESS POINT LIST");
   int res = CEspControl::getInstance().getAccessPointScanList(access_point_list);
